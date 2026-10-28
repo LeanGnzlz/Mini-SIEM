@@ -156,3 +156,20 @@ def evaluate_sequence(rule: Rule, events: list[Event]) -> list[Alert]:
 
     alerts.sort(key=lambda alert: alert.timestamp)
     return alerts
+
+
+EVALUATORS = {
+    "signature": evaluate_signature,
+    "threshold": evaluate_threshold,
+    "sequence": evaluate_sequence,
+}
+
+
+def run_rules(rules: list[Rule], events: list[Event]) -> list[Alert]:
+    alerts = []
+    for rule in rules:
+        if not rule.enabled:
+            continue
+        alerts.extend(EVALUATORS[rule.rule_type](rule, events))
+    alerts.sort(key=lambda alert: alert.timestamp)
+    return alerts
