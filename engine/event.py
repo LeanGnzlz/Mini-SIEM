@@ -8,6 +8,8 @@ AUTH_FAILURE = "auth_failure"
 AUTH_SUCCESS = "auth_success"
 PORT_OPEN = "port_open"
 
+VALID_EVENT_TYPES = {AUTH_FAILURE, AUTH_SUCCESS, PORT_OPEN}
+
 VALID_SEVERITIES = {"low", "medium", "high", "critical"}
 
 
