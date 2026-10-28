@@ -87,3 +87,72 @@ def evaluate_threshold(rule: Rule, events: list[Event]) -> list[Alert]:
 
     alerts.sort(key=lambda alert: alert.timestamp)
     return alerts
+
+
+def matches_sequence(window, pattern) -> bool:
+    position = 0
+    for event in window:
+        if event.event_type == pattern[position]:
+            position += 1
+            if position == len(pattern):
+                return True
+    return False
+
+
+def describe_steps(steps) -> str:
+    parts = [
+        f"{step.event_type} x{step.count}" if step.count > 1 else step.event_type
+        for step in steps
+    ]
+    return " -> ".join(parts)
+
+
+def evaluate_sequence(rule: Rule, events: list[Event]) -> list[Alert]:
+    if rule.rule_type != "sequence":
+        raise ValueError(f"rule {rule.rule_id} is not a sequence rule")
+
+    pattern = [step.event_type for step in rule.steps for _ in range(step.count)]
+    step_types = set(pattern)
+
+    relevant = [
+        event
+        for event in events
+        if event.event_type in step_types and getattr(event, rule.group_by) is not None
+    ]
+    relevant.sort(key=lambda event: event.timestamp)
+
+    groups = {}
+    for event in relevant:
+        groups.setdefault(getattr(event, rule.group_by), []).append(event)
+
+    base = rule.description or rule.name
+    steps_text = describe_steps(rule.steps)
+    span = timedelta(seconds=rule.window_seconds)
+    alerts = []
+
+    for key, group_events in groups.items():
+        window = deque()
+        for event in group_events:
+            limit = event.timestamp - span
+            while window and window[0].timestamp < limit:
+                window.popleft()
+            window.append(event)
+            if matches_sequence(window, pattern):
+                alerts.append(
+                    Alert(
+                        rule_id=rule.rule_id,
+                        rule_name=rule.name,
+                        severity=rule.severity,
+                        timestamp=event.timestamp,
+                        description=(
+                            f"{base}: {rule.group_by}={key}, "
+                            f"sequence {steps_text} within {rule.window_seconds}s"
+                        ),
+                        event_ids=tuple(item.event_id for item in window),
+                        mitre_technique=rule.mitre_technique,
+                    )
+                )
+                window.clear()
+
+    alerts.sort(key=lambda alert: alert.timestamp)
+    return alerts
