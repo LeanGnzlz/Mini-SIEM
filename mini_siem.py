@@ -1,16 +1,25 @@
 import argparse
 import sys
 from collections import Counter
-from datetime import timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 from engine.alert import Alert
 from engine.evaluator import run_rules
 from engine.ingest import ingest
+from engine.report import (
+    SEVERITY_ORDER,
+    build_report,
+    write_json_report,
+    write_txt_report,
+)
 from engine.rule import load_rules
 
 DEFAULT_RULES = Path(__file__).resolve().parent / "rules" / "rules.yaml"
-SEVERITY_ORDER = ("critical", "high", "medium", "low")
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +47,12 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="detection rules file (YAML)",
     )
+    parser.add_argument(
+        "--report-dir",
+        default=None,
+        metavar="DIR",
+        help="write a JSON and a TXT report to this folder",
+    )
     return parser
 
 
@@ -62,7 +77,7 @@ def severity_breakdown(alerts: list[Alert]) -> str:
     return ", ".join(parts)
 
 
-def main(argv=None) -> int:
+def main(argv=None, now=utc_now) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.scan and not args.auth_log:
@@ -100,6 +115,19 @@ def main(argv=None) -> int:
     for alert in alerts:
         print()
         print(format_alert(alert))
+
+    if args.report_dir is not None:
+        generated_at = now()
+        report = build_report(events, alerts, rejected, rules, generated_at)
+        try:
+            json_path = write_json_report(report, args.report_dir, generated_at)
+            txt_path = write_txt_report(report, args.report_dir, generated_at)
+        except OSError as error:
+            print(f"error: cannot write report: {error}", file=sys.stderr)
+            return 2
+        print()
+        print(f"Report written: {json_path}")
+        print(f"Report written: {txt_path}")
     return 0
 
 
