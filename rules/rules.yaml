@@ -1,0 +1,44 @@
+rules:
+  - id: R001
+    name: Sensitive port open
+    type: signature
+    severity: high
+    description: Remote access or file sharing port found open
+    event_type: port_open
+    dest_ports: [23, 445, 3389, 5900]
+
+  - id: R002
+    name: Brute force
+    type: threshold
+    severity: medium
+    mitre: T1110.001
+    description: Repeated failed logins from one IP
+    event_type: auth_failure
+    group_by: src_ip
+    window_seconds: 300
+    threshold: 5
+
+  - id: R003
+    name: Successful brute force
+    type: sequence
+    severity: high
+    mitre: T1110
+    description: Failed logins followed by a successful login from the same IP
+    group_by: src_ip
+    window_seconds: 300
+    steps:
+      - event_type: auth_failure
+        count: 5
+      - event_type: auth_success
+
+  - id: R004
+    name: Password spraying
+    type: threshold
+    severity: medium
+    mitre: T1110.003
+    description: Failed logins against several different users from one IP
+    event_type: auth_failure
+    group_by: src_ip
+    window_seconds: 300
+    threshold: 5
+    distinct: user
