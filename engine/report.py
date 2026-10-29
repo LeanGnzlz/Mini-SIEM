@@ -59,11 +59,95 @@ def build_report(
     }
 
 
-def write_json_report(report: dict, directory, generated_at: datetime) -> Path:
+RULE_LINE = "=" * 32
+
+
+def format_time(text: str) -> str:
+    moment = datetime.fromisoformat(text).astimezone(timezone.utc)
+    return moment.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+def describe_event(item: dict) -> str:
+    parts = [format_time(item["timestamp"]), item["event_type"], item["source"]]
+    if item["src_ip"]:
+        parts.append(f"src {item['src_ip']}")
+    if item["dest_ip"] or item["dest_port"] is not None:
+        host = item["dest_ip"] or "?"
+        port = f":{item['dest_port']}" if item["dest_port"] is not None else ""
+        parts.append(f"dest {host}{port}")
+    if item["user"]:
+        parts.append(f"user {item['user']}")
+    return " | ".join(parts)
+
+
+def format_alert_block(entry: dict) -> str:
+    title = f"[{entry['severity'].upper()}] {entry['rule_id']} {entry['rule_name']}"
+    if entry["mitre_technique"]:
+        title += f" ({entry['mitre_technique']})"
+    lines = [
+        title,
+        f"  Time: {format_time(entry['timestamp'])}",
+        f"  {entry['description']}",
+        f"  Evidence ({len(entry['evidence'])} event(s)):",
+    ]
+    lines.extend(f"    - {describe_event(item)}" for item in entry["evidence"])
+    return "\n".join(lines)
+
+
+def format_txt_report(report: dict) -> str:
+    summary = report["summary"]
+    severities = ", ".join(
+        f"{name}: {count}" for name, count in summary["alerts_by_severity"].items()
+    )
+    alerts_line = f"  Alerts: {summary['alerts']}"
+    if severities:
+        alerts_line += f" ({severities})"
+
+    lines = [
+        RULE_LINE,
+        "MINI-SIEM REPORT",
+        RULE_LINE,
+        f"Generated: {format_time(report['generated_at'])}",
+        "",
+        "Summary",
+        f"  Events ingested: {summary['events_ingested']}",
+        f"  Rejected inputs: {summary['rejected_inputs']}",
+        f"  Rules loaded: {summary['rules_loaded']} ({summary['rules_enabled']} enabled)",
+        alerts_line,
+        "",
+        "Alerts",
+    ]
+    if report["alerts"]:
+        for entry in report["alerts"]:
+            lines.append("")
+            lines.append(format_alert_block(entry))
+    else:
+        lines.append("  No alerts.")
+
+    lines.append("")
+    lines.append("Rejected inputs")
+    if report["rejected"]:
+        lines.extend(f"  - {message}" for message in report["rejected"])
+    else:
+        lines.append("  None.")
+    lines.extend(["", RULE_LINE])
+    return "\n".join(lines) + "\n"
+
+
+def write_new_file(directory, generated_at: datetime, extension: str, text: str) -> Path:
+    name = f"{report_basename(generated_at)}.{extension}"
     folder = Path(directory)
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{report_basename(generated_at)}.json"
+    path = folder / name
     with open(path, "x", encoding="utf-8") as file:
-        json.dump(report, file, indent=2, ensure_ascii=False)
-        file.write("\n")
+        file.write(text)
     return path
+
+
+def write_json_report(report: dict, directory, generated_at: datetime) -> Path:
+    text = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
+    return write_new_file(directory, generated_at, "json", text)
+
+
+def write_txt_report(report: dict, directory, generated_at: datetime) -> Path:
+    return write_new_file(directory, generated_at, "txt", format_txt_report(report))
