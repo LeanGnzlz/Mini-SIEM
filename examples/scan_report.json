@@ -1,0 +1,17 @@
+{
+    "target": "127.0.0.1",
+    "scan_duration": 21.21,
+    "completed": "2026-06-25 13:58:39",
+    "open_ports": [
+        {
+            "port": 135,
+            "service": "MSRPC",
+            "banner": "Not applicable"
+        },
+        {
+            "port": 445,
+            "service": "SMB",
+            "banner": "Not applicable"
+        }
+    ]
+}
