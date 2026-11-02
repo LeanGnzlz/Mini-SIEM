@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from engine.alert import Alert
 from engine.event import Event
+from engine.identity import assign_stable_alert_ids
 from engine.rule import Rule
 
 
@@ -172,4 +173,4 @@ def run_rules(rules: list[Rule], events: list[Event]) -> list[Alert]:
             continue
         alerts.extend(EVALUATORS[rule.rule_type](rule, events))
     alerts.sort(key=lambda alert: alert.timestamp)
-    return alerts
+    return assign_stable_alert_ids(alerts)
