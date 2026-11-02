@@ -1,5 +1,7 @@
 # Mini-SIEM
 
+[![Tests](https://github.com/LeanGnzlz/Mini-SIEM/actions/workflows/tests.yml/badge.svg)](https://github.com/LeanGnzlz/Mini-SIEM/actions/workflows/tests.yml)
+
 Educational Python tool that collects security events from different sources, normalizes them into a common format, correlates them with configurable detection rules and generates alerts with their supporting evidence.
 
 It is built on top of my two previous projects, which act as data sources:
