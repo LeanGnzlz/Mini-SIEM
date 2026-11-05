@@ -80,3 +80,72 @@ def save_run(
         alerts_new=alerts_new,
         alerts_existing=len(alerts) - alerts_new,
     )
+
+
+SELECT_EVENTS = (
+    "SELECT event_id, timestamp, source, event_type, src_ip, dest_ip, "
+    "dest_port, user, severity_raw, raw_data FROM events "
+    "ORDER BY timestamp, rowid"
+)
+SELECT_ALERTS = (
+    "SELECT alert_id, rule_id, rule_name, severity, timestamp, description, "
+    "mitre_technique FROM alerts ORDER BY timestamp, rowid"
+)
+SELECT_EVIDENCE = (
+    "SELECT alert_id, event_id FROM alert_events ORDER BY alert_id, position"
+)
+
+
+def parse_utc(text: str) -> datetime:
+    return datetime.fromisoformat(text)
+
+
+def row_to_event(row: sqlite3.Row) -> Event:
+    try:
+        return Event(
+            event_id=row["event_id"],
+            timestamp=parse_utc(row["timestamp"]),
+            source=row["source"],
+            event_type=row["event_type"],
+            src_ip=row["src_ip"],
+            dest_ip=row["dest_ip"],
+            dest_port=row["dest_port"],
+            user=row["user"],
+            severity_raw=row["severity_raw"],
+            raw_data=row["raw_data"],
+        )
+    except ValueError as error:
+        raise ValueError(
+            f"event {row['event_id']} in the database is invalid: {error}"
+        ) from error
+
+
+def load_events(connection: sqlite3.Connection) -> list[Event]:
+    return [row_to_event(row) for row in connection.execute(SELECT_EVENTS)]
+
+
+def load_alerts(connection: sqlite3.Connection) -> list[Alert]:
+    evidence = {}
+    for row in connection.execute(SELECT_EVIDENCE):
+        evidence.setdefault(row["alert_id"], []).append(row["event_id"])
+
+    alerts = []
+    for row in connection.execute(SELECT_ALERTS):
+        try:
+            alerts.append(
+                Alert(
+                    alert_id=row["alert_id"],
+                    rule_id=row["rule_id"],
+                    rule_name=row["rule_name"],
+                    severity=row["severity"],
+                    timestamp=parse_utc(row["timestamp"]),
+                    description=row["description"],
+                    event_ids=tuple(evidence.get(row["alert_id"], ())),
+                    mitre_technique=row["mitre_technique"],
+                )
+            )
+        except ValueError as error:
+            raise ValueError(
+                f"alert {row['alert_id']} in the database is invalid: {error}"
+            ) from error
+    return alerts
