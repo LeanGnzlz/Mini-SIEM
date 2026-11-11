@@ -149,3 +149,10 @@ def load_alerts(connection: sqlite3.Connection) -> list[Alert]:
                 f"alert {row['alert_id']} in the database is invalid: {error}"
             ) from error
     return alerts
+
+
+SELECT_ALERT_IDS = "SELECT alert_id FROM alerts"
+
+
+def load_alert_ids(connection: sqlite3.Connection) -> set[str]:
+    return {row["alert_id"] for row in connection.execute(SELECT_ALERT_IDS)}

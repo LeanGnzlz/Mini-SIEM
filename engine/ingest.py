@@ -42,3 +42,15 @@ def ingest(scan_report_paths=(), auth_log_paths=()) -> tuple[list[Event], list[s
 
     events.sort(key=lambda event: event.timestamp)
     return events, rejected
+
+
+def merge_events(history: list[Event], new_events: list[Event]) -> list[Event]:
+    merged = []
+    seen_ids = set()
+    for event in history + new_events:
+        if event.event_id in seen_ids:
+            continue
+        seen_ids.add(event.event_id)
+        merged.append(event)
+    merged.sort(key=lambda event: event.timestamp)
+    return merged
