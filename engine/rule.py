@@ -101,6 +101,14 @@ class Rule:
         }
         validators[self.rule_type]()
 
+    @property
+    def group_fields(self) -> tuple:
+        if self.group_by is None:
+            return ()
+        if isinstance(self.group_by, str):
+            return (self.group_by,)
+        return tuple(self.group_by)
+
     def _check_unused(self, allowed):
         for name in TYPE_SPECIFIC_FIELDS:
             if name not in allowed and getattr(self, name) not in (None, ()):
