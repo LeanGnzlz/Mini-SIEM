@@ -72,7 +72,7 @@ class Rule:
     mitre_technique: Optional[str] = None
     enabled: bool = True
     event_type: Optional[str] = None
-    group_by: Optional[str] = None
+    group_by: Optional[str | tuple] = None
     window_seconds: Optional[int] = None
     threshold: Optional[int] = None
     distinct: Optional[str] = None
@@ -119,8 +119,18 @@ class Rule:
             raise ValueError(f"unknown event type: {self.event_type}")
 
     def _require_group_by(self):
-        if not is_one_of(self.group_by, GROUP_FIELDS):
-            raise ValueError(f"group_by must be one of {sorted(GROUP_FIELDS)}")
+        fields = self.group_by
+        if isinstance(fields, str):
+            fields = (fields,)
+        if not isinstance(fields, tuple) or not fields:
+            raise ValueError(
+                "group_by must be a field name or a non-empty list of field names"
+            )
+        for field in fields:
+            if not is_one_of(field, GROUP_FIELDS):
+                raise ValueError(f"group_by must only use {sorted(GROUP_FIELDS)}")
+        if len(set(fields)) != len(fields):
+            raise ValueError("group_by must not repeat a field")
 
     def _require_window(self):
         if not is_positive_int(self.window_seconds):
@@ -145,7 +155,7 @@ class Rule:
         if self.distinct is not None:
             if not is_one_of(self.distinct, DISTINCT_FIELDS):
                 raise ValueError(f"distinct must be one of {sorted(DISTINCT_FIELDS)}")
-            if self.distinct == self.group_by:
+            if self.distinct in self.group_fields:
                 raise ValueError("distinct must differ from group_by")
 
     def _validate_sequence(self):
@@ -187,6 +197,8 @@ def build_rule(entry) -> Rule:
     kwargs = {YAML_FIELDS[key]: value for key, value in entry.items()}
     if "dest_ports" in kwargs:
         kwargs["dest_ports"] = tuple(as_list(kwargs["dest_ports"], "dest_ports"))
+    if isinstance(kwargs.get("group_by"), list):
+        kwargs["group_by"] = tuple(kwargs["group_by"])
     if "steps" in kwargs:
         kwargs["steps"] = tuple(build_step(step) for step in as_list(kwargs["steps"], "steps"))
     return Rule(**kwargs)
